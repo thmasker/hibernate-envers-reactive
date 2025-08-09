@@ -1,0 +1,16 @@
+quarkus:
+  application:
+    name: hibernate-envers-reactive
+  datasource:
+    db-kind: postgresql
+    username: user
+    password: pass
+  flyway:
+    migrate-at-start: true
+  log:
+    level: DEBUG
+  swagger-ui:
+    display-request-duration: true
+    footer: Hibernate Envers Reactive API
+    theme: original
+    title: Hibernate Envers Reactive API
