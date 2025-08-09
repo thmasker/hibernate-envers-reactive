@@ -9,12 +9,11 @@
     <version>1.0.0-SNAPSHOT</version>
 
     <properties>
+        <quarkus.version>3.25.2</quarkus.version>
         <maven.compiler.source>22</maven.compiler.source>
         <maven.compiler.target>22</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jandex.version>3.4.0</jandex.version>
-        <quarkus.version>3.25.2</quarkus.version>
-        <hibernate.envers.version>7.0.8.Final</hibernate.envers.version>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>
 
     <dependencyManagement>
@@ -79,7 +78,7 @@
         <dependency>
             <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-envers</artifactId>
-            <version>${hibernate.envers.version}</version>
+            <version>7.0.8.Final</version>
         </dependency>
 
         <!--test-->
@@ -116,7 +115,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
+                <version>3.14.0</version>
                 <configuration>
                     <parameters>true</parameters>
                     <source>22</source>
@@ -124,9 +123,17 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.3</version>
+                <configuration>
+                    <argLine>-Djava.util.logging.manager=org.jboss.logmanager.LogManager</argLine>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>io.smallrye</groupId>
                 <artifactId>jandex-maven-plugin</artifactId>
-                <version>${jandex.version}</version>
+                <version>3.4.0</version>
                 <executions>
                     <execution>
                         <id>make-index</id>

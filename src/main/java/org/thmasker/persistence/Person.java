@@ -19,8 +19,8 @@ public class Person {
     @Column(name = "surname")
     private String surname;
 
-    @ManyToOne
     @JoinColumn(name = "address")
+    @ManyToOne(cascade = CascadeType.ALL)
     private Address address;
 
     public Person() {
