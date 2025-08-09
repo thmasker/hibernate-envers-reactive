@@ -7,6 +7,7 @@
 
 # User-specific stuff
 .idea/
+!.idea/icon.svg
 *.iml
 
 # Gradle and Maven with auto-import
