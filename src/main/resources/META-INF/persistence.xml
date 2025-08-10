@@ -10,17 +10,16 @@
         <class>org.thmasker.persistence.Address</class>
 
         <properties>
-            <!--            <property name="jakarta.persistence.jdbc.driver" value="org.postgresql.Driver"/>-->
-            <property name="jakarta.persistence.jdbc.url" value="postgresql://localhost:5432/postgres"/>
+            <property name="jakarta.persistence.jdbc.url" value="jdbc:postgresql://localhost:5432/postgres"/>
             <property name="jakarta.persistence.jdbc.user" value="postgres"/>
             <property name="jakarta.persistence.jdbc.password" value="pass"/>
+            <property name="jakarta.persistence.schema-generation.database.action" value="drop-and-create"/>
 
-            <property name="hibernate.hbm2ddl.auto" value="update"/>
-            <property name="hibernate.show_sql" value="true"/>
-            <property name="hibernate.format_sql" value="true"/>
             <property name="hibernate.envers.store_data_at_delete" value="true"/>
 
-            <property name="hbm2ddl.auto" value="update"/>
+            <property name="hibernate.show_sql" value="true"/>
+            <property name="hibernate.format_sql" value="true"/>
+            <property name="hibernate.highlight_sql" value="true"/>
         </properties>
     </persistence-unit>
 </persistence>

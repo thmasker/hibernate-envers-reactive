@@ -1,24 +1,25 @@
 package org.thmasker.console;
 
-import jakarta.persistence.EntityManager;
+import io.smallrye.mutiny.Uni;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
-import org.hibernate.envers.AuditReader;
-import org.hibernate.envers.AuditReaderFactory;
-import org.hibernate.envers.DefaultRevisionEntity;
-import org.hibernate.envers.query.AuditEntity;
+import org.hibernate.reactive.mutiny.Mutiny;
 import org.thmasker.persistence.Address;
 import org.thmasker.persistence.Person;
 
 import java.io.PrintStream;
-import java.util.*;
+import java.util.HashSet;
+import java.util.InputMismatchException;
+import java.util.Iterator;
+import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Console {
 
-    private final EntityManager entityManager;
+    private final Mutiny.SessionFactory sessionFactory;
 
-    public Console(EntityManager entityManager) {
-        this.entityManager = entityManager;
+    public Console(EntityManagerFactory entityManagerFactory) {
+        this.sessionFactory = entityManagerFactory.unwrap(Mutiny.SessionFactory.class);
     }
 
     private String convertString(String s, String def) {
@@ -54,50 +55,54 @@ public class Console {
         }
     }
 
-    private void printPersons(StringBuilder sb) {
-        List<Person> persons = entityManager.createQuery(
-                "select p from Person p order by p.id").getResultList();
-
-        sb.append("Persons:\n");
-        for (Person p : persons) {
-            printPerson(sb, p);
-            sb.append("\n");
-        }
+    private Uni<Void> printPersons(StringBuilder sb) {
+        return sessionFactory.getCurrentSession()
+                .createQuery("select p from Person p order by p.id", Person.class).getResultList()
+                .map(persons -> {
+                    sb.append("Persons:\n");
+                    for (Person p : persons) {
+                        printPerson(sb, p);
+                        sb.append("\n");
+                    }
+                    return persons;
+                }).replaceWithVoid();
     }
 
-    private void printPersonHistory(StringBuilder sb, int personId) {
-        AuditReader reader = AuditReaderFactory.get(entityManager);
+//    todo
+//    private void printPersonHistory(StringBuilder sb, int personId) {
+//        AuditReader reader = AuditReaderFactory.get(entityManager);
+//
+//        List personHistory = reader.createQuery()
+//                .forRevisionsOfEntity(Person.class, false, true)
+//                .add(AuditEntity.id().eq(personId))
+//                .getResultList();
+//
+//        if (personHistory.isEmpty()) {
+//            sb.append("A person with id ").append(personId).append(" does not exist.\n");
+//        } else {
+//            for (Object historyObj : personHistory) {
+//                Object[] history = (Object[]) historyObj;
+//                DefaultRevisionEntity revision = (DefaultRevisionEntity) history[1];
+//                sb.append("revision = ").append(revision.getId()).append(", ");
+//                printPerson(sb, (Person) history[0]);
+//                sb.append(" (").append(revision.getRevisionDate()).append(")\n");
+//            }
+//        }
+//    }
 
-        List personHistory = reader.createQuery()
-                .forRevisionsOfEntity(Person.class, false, true)
-                .add(AuditEntity.id().eq(personId))
-                .getResultList();
+//     todo
+//    private void printPersonAtRevision(StringBuilder sb, int personId, int revision) {
+//        AuditReader reader = AuditReaderFactory.get(entityManager);
+//
+//        Person p = reader.find(Person.class, personId, revision);
+//        if (p == null) {
+//            sb.append("This person does not exist at that revision.");
+//        } else {
+//            printPerson(sb, p);
+//        }
+//    }
 
-        if (personHistory.isEmpty()) {
-            sb.append("A person with id ").append(personId).append(" does not exist.\n");
-        } else {
-            for (Object historyObj : personHistory) {
-                Object[] history = (Object[]) historyObj;
-                DefaultRevisionEntity revision = (DefaultRevisionEntity) history[1];
-                sb.append("revision = ").append(revision.getId()).append(", ");
-                printPerson(sb, (Person) history[0]);
-                sb.append(" (").append(revision.getRevisionDate()).append(")\n");
-            }
-        }
-    }
-
-    private void printPersonAtRevision(StringBuilder sb, int personId, int revision) {
-        AuditReader reader = AuditReaderFactory.get(entityManager);
-
-        Person p = reader.find(Person.class, personId, revision);
-        if (p == null) {
-            sb.append("This person does not exist at that revision.");
-        } else {
-            printPerson(sb, p);
-        }
-    }
-
-    private void readAndSetAddress(Scanner scanner, Person p) {
+    private Uni<Void> readAndSetAddress(Scanner scanner, Person p) {
         Address old = p.getAddress();
 
         String input = scanner.nextLine();
@@ -108,23 +113,9 @@ public class Console {
             }
         } else if ("".equals(input)) {
         } else {
+            Integer id = null;
             try {
-                Integer id = Integer.valueOf(input);
-
-                Address a = entityManager.find(Address.class, id);
-
-                if (a == null) {
-                    System.err.println("Unknown address id, setting to NULL.");
-                    p.setAddress(null);
-                } else {
-                    p.setAddress(a);
-
-                    a.getPersons().add(p);
-
-                }
-                if (old != null) {
-                    old.getPersons().remove(p);
-                }
+                id = Integer.valueOf(input);
             } catch (NumberFormatException e) {
                 System.err.println("Invalid address id, setting to NULL.");
                 p.setAddress(null);
@@ -132,7 +123,22 @@ public class Console {
                     old.getPersons().remove(p);
                 }
             }
+
+            return sessionFactory.getCurrentSession().find(Address.class, id).map(address -> {
+                if (address == null) {
+                    System.err.println("Unknown address id, setting to NULL.");
+                    p.setAddress(null);
+                } else {
+                    p.setAddress(address);
+                    address.getPersons().add(p);
+                }
+                if (old != null) {
+                    old.getPersons().remove(p);
+                }
+                return address;
+            }).replaceWithVoid();
         }
+        return Uni.createFrom().voidItem();
     }
 
     private Person readNewPerson(PrintStream out, Scanner scanner) {
@@ -150,23 +156,24 @@ public class Console {
         return p;
     }
 
-    private void readModifyPerson(PrintStream out, Scanner scanner, int personId) {
-        Person current = entityManager.find(Person.class, personId);
+    private Uni<Void> readModifyPerson(PrintStream out, Scanner scanner, int personId) {
+        return sessionFactory.getCurrentSession().find(Person.class, personId).map(person -> {
+            if (person == null) {
+                out.println("Person with id " + personId + " does not exist.");
+                return null;
+            }
 
-        if (current == null) {
-            out.println("Person with id " + personId + " does not exist.");
-            return;
-        }
+            out.print("Person name (NULL for null, enter for no change, current - " + person.getName() + "): ");
+            person.setName(convertString(scanner.nextLine(), person.getName()));
 
-        out.print("Person name (NULL for null, enter for no change, current - " + current.getName() + "): ");
-        current.setName(convertString(scanner.nextLine(), current.getName()));
+            out.print("Person surname (NULL for null, enter for no change, current - " + person.getSurname() + "): ");
+            person.setSurname(convertString(scanner.nextLine(), person.getSurname()));
 
-        out.print("Person surname (NULL for null, enter for no change, current - " + current.getSurname() + "): ");
-        current.setSurname(convertString(scanner.nextLine(), current.getSurname()));
-
-        out.print("Person address id (NULL for null, enter for no change, current - " +
-                (current.getAddress() == null ? "NULL" : current.getAddress().getId()) + "): ");
-        readAndSetAddress(scanner, current);
+            out.print("Person address id (NULL for null, enter for no change, current - " +
+                    (person.getAddress() == null ? "NULL" : person.getAddress().getId()) + "): ");
+            readAndSetAddress(scanner, person);
+            return person;
+        }).replaceWithVoid();
     }
 
     private void printAddress(StringBuilder sb, Address a) {
@@ -187,49 +194,52 @@ public class Console {
         sb.append(")");
     }
 
-    @SuppressWarnings("unchecked")
-    private void printAddresses(StringBuilder sb) {
-        List<Address> addresses = entityManager.createQuery(
-                "select a from Address a order by a.id").getResultList();
-
-        sb.append("Addresses:\n");
-        for (Address a : addresses) {
-            printAddress(sb, a);
-            sb.append("\n");
-        }
+    private Uni<Void> printAddresses(StringBuilder sb) {
+        return sessionFactory.getCurrentSession()
+                .createQuery("select a from Address a order by a.id", Address.class).getResultList()
+                .map(addresses -> {
+                    sb.append("Addresses:\n");
+                    for (Address a : addresses) {
+                        printAddress(sb, a);
+                        sb.append("\n");
+                    }
+                    return addresses;
+                }).replaceWithVoid();
     }
 
-    private void printAddressHistory(StringBuilder sb, int addressId) {
-        AuditReader reader = AuditReaderFactory.get(entityManager);
+//    todo
+//    private void printAddressHistory(StringBuilder sb, int addressId) {
+//        AuditReader reader = AuditReaderFactory.get(entityManager);
+//
+//        List addressHistory = reader.createQuery()
+//                .forRevisionsOfEntity(Address.class, false, true)
+//                .add(AuditEntity.id().eq(addressId))
+//                .getResultList();
+//
+//        if (addressHistory.isEmpty()) {
+//            sb.append("A address with id ").append(addressId).append(" does not exist.\n");
+//        } else {
+//            for (Object historyObj : addressHistory) {
+//                Object[] history = (Object[]) historyObj;
+//                DefaultRevisionEntity revision = (DefaultRevisionEntity) history[1];
+//                sb.append("revision = ").append(revision.getId()).append(", ");
+//                printAddress(sb, (Address) history[0]);
+//                sb.append(" (").append(revision.getRevisionDate()).append(")\n");
+//            }
+//        }
+//    }
 
-        List addressHistory = reader.createQuery()
-                .forRevisionsOfEntity(Address.class, false, true)
-                .add(AuditEntity.id().eq(addressId))
-                .getResultList();
-
-        if (addressHistory.isEmpty()) {
-            sb.append("A address with id ").append(addressId).append(" does not exist.\n");
-        } else {
-            for (Object historyObj : addressHistory) {
-                Object[] history = (Object[]) historyObj;
-                DefaultRevisionEntity revision = (DefaultRevisionEntity) history[1];
-                sb.append("revision = ").append(revision.getId()).append(", ");
-                printAddress(sb, (Address) history[0]);
-                sb.append(" (").append(revision.getRevisionDate()).append(")\n");
-            }
-        }
-    }
-
-    private void printAddressAtRevision(StringBuilder sb, int addressId, int revision) {
-        AuditReader reader = AuditReaderFactory.get(entityManager);
-
-        Address a = reader.find(Address.class, addressId, revision);
-        if (a == null) {
-            sb.append("This address does not exist at that revision.");
-        } else {
-            printAddress(sb, a);
-        }
-    }
+//    todo
+//    private void printAddressAtRevision(StringBuilder sb, int addressId, int revision) {
+//        AuditReader reader = AuditReaderFactory.get(entityManager);
+//
+//        Address a = reader.find(Address.class, addressId, revision);
+//        if (a == null) {
+//            sb.append("This address does not exist at that revision.");
+//        } else {
+//            printAddress(sb, a);
+//        }
+//    }
 
     private Address readNewAddress(PrintStream out, Scanner scanner) {
         Address a = new Address();
@@ -248,29 +258,32 @@ public class Console {
         return a;
     }
 
-    private void readModifyAddress(PrintStream out, Scanner scanner, int addressId) {
-        Address current = entityManager.find(Address.class, addressId);
+    private Uni<Void> readModifyAddress(PrintStream out, Scanner scanner, int addressId) {
+        return sessionFactory.getCurrentSession().find(Address.class, addressId).map(address -> {
+            if (address == null) {
+                out.println("Address with id " + addressId + " does not exist.");
+                return null;
+            }
 
-        if (current == null) {
-            out.println("Address with id " + addressId + " does not exist.");
-            return;
-        }
+            out.print("Street name (NULL for null, enter for no change, current - " + address.getStreetName() + "): ");
+            address.setStreetName(convertString(scanner.nextLine(), address.getStreetName()));
 
-        out.print("Street name (NULL for null, enter for no change, current - " + current.getStreetName() + "): ");
-        current.setStreetName(convertString(scanner.nextLine(), current.getStreetName()));
+            out.print("House number (enter for no change, current - " + address.getHouseNumber() + "): ");
+            address.setHouseNumber(convertStringToInteger(scanner.nextLine(), address.getHouseNumber()));
 
-        out.print("House number (enter for no change, current - " + current.getHouseNumber() + "): ");
-        current.setHouseNumber(convertStringToInteger(scanner.nextLine(), current.getHouseNumber()));
+            out.print("Flat number (enter for no change, current - " + address.getFlatNumber() + "): ");
+            address.setFlatNumber(convertStringToInteger(scanner.nextLine(), address.getFlatNumber()));
 
-        out.print("Flat number (enter for no change, current - " + current.getFlatNumber() + "): ");
-        current.setFlatNumber(convertStringToInteger(scanner.nextLine(), current.getFlatNumber()));
+            return address;
+        }).replaceWithVoid();
     }
 
     private void start() {
         Scanner scanner = new Scanner(System.in);
         PrintStream out = System.out;
 
-        while (true) {
+        AtomicBoolean quit = new AtomicBoolean(false);
+        while (!quit.get()) {
             out.println("-----------------------------------------------");
             out.println("1 - list persons             5 - list addresses");
             out.println("2 - list person history      6 - list addresses history");
@@ -279,18 +292,21 @@ public class Console {
             out.println("9 - get person at revision  10 - get address at revision");
             out.println("                             0 - end");
 
+            int choice = -1;
             try {
-                int choice = scanner.nextInt();
-
+                choice = scanner.nextInt();
                 scanner.nextLine();
+            } catch (InputMismatchException e) {
+                // continuing
+            }
 
-                entityManager.getTransaction().begin();
-
+            int finalChoice = choice;
+            sessionFactory.withSession(session -> {
                 StringBuilder sb;
                 int personId;
                 int addressId;
                 int revision;
-                switch (choice) {
+                switch (finalChoice) {
                     case 1:
                         sb = new StringBuilder();
                         printPersons(sb);
@@ -301,19 +317,19 @@ public class Console {
                         personId = scanner.nextInt();
                         scanner.nextLine();
                         sb = new StringBuilder();
-                        printPersonHistory(sb, personId);
+//                        todo
+//                        printPersonHistory(sb, personId);
                         out.println(sb);
                         break;
                     case 3:
                         Person p = readNewPerson(out, scanner);
-                        entityManager.persist(p);
+                        session.persist(p);
                         break;
                     case 4:
                         out.print("Person id: ");
                         personId = scanner.nextInt();
                         scanner.nextLine();
-                        readModifyPerson(out, scanner, personId);
-                        break;
+                        return readModifyPerson(out, scanner, personId);
                     case 5:
                         sb = new StringBuilder();
                         printAddresses(sb);
@@ -324,12 +340,13 @@ public class Console {
                         addressId = scanner.nextInt();
                         scanner.nextLine();
                         sb = new StringBuilder();
-                        printAddressHistory(sb, addressId);
+//                        todo
+//                        printAddressHistory(sb, addressId);
                         out.println(sb);
                         break;
                     case 7:
                         Address a = readNewAddress(out, scanner);
-                        entityManager.persist(a);
+                        session.persist(a);
                         break;
                     case 8:
                         out.print("Address id: ");
@@ -345,11 +362,12 @@ public class Console {
                         revision = scanner.nextInt();
                         scanner.nextLine();
                         if (revision <= 0) {
-                            System.out.println("Revision must be greater then 0!");
-                            continue;
+                            System.out.println("Revision must be greater than 0");
+                            break;
                         }
                         sb = new StringBuilder();
-                        printPersonAtRevision(sb, personId, revision);
+//                        todo
+//                        printPersonAtRevision(sb, personId, revision);
                         out.println(sb);
                         break;
                     case 10:
@@ -360,93 +378,94 @@ public class Console {
                         revision = scanner.nextInt();
                         scanner.nextLine();
                         if (revision <= 0) {
-                            System.out.println("Revision must be greater then 0!");
-                            continue;
+                            System.out.println("Revision must be greater than 0");
+                            break;
                         }
                         sb = new StringBuilder();
-                        printAddressAtRevision(sb, addressId, revision);
+//                        todo
+//                        printAddressAtRevision(sb, addressId, revision);
                         out.println(sb);
                         break;
-
-                    case 0:
-                        return;
+                    default:
+                        quit.set(true);
                 }
-            } catch (InputMismatchException e) {
-                // continuing
-            } finally {
-                entityManager.getTransaction().commit();
-            }
+                return null;
+            });
         }
     }
 
-    private boolean hasData() {
-        return (((Long) entityManager.createQuery("select count(a) from Address a").getSingleResult()) +
-                ((Long) entityManager.createQuery("select count(p) from Person p").getSingleResult())) > 0;
+    private void stop() {
+        sessionFactory.close();
     }
 
-    private void populateTestData() {
-        entityManager.getTransaction().begin();
+    private Uni<Boolean> hasData() {
+        Mutiny.Session session = sessionFactory.getCurrentSession();
 
-        if (!hasData()) {
-            Person p1 = new Person();
-            Person p2 = new Person();
-            Person p3 = new Person();
+        Uni<Long> addressCount = session.createQuery("select count(a) from Address a", Long.class).getSingleResult();
+        Uni<Long> personCount = session.createQuery("select count(p) from Person p", Long.class).getSingleResult();
 
-            Address a1 = new Address();
-            Address a2 = new Address();
+        return Uni.combine().all().unis(addressCount, personCount).asTuple()
+                .onItem().transform(tuple -> tuple.getItem1() + tuple.getItem2() > 0);
+    }
 
-            p1.setName("James");
-            p1.setSurname("Bond");
-            p1.setAddress(a1);
+    private Uni<Void> populateTestData() {
+        return sessionFactory.withSession(session ->
+                hasData().map(hasData -> {
+                    if (Boolean.TRUE.equals(hasData)) {
+                        Person p1 = new Person();
+                        Person p2 = new Person();
+                        Person p3 = new Person();
 
-            p2.setName("John");
-            p2.setSurname("McClane");
-            p2.setAddress(a2);
+                        Address a1 = new Address();
+                        Address a2 = new Address();
 
-            p3.setName("Holly");
-            p3.setSurname("Gennaro");
-            p3.setAddress(a2);
+                        p1.setName("James");
+                        p1.setSurname("Bond");
+                        p1.setAddress(a1);
 
-            a1.setStreetName("MI6");
-            a1.setHouseNumber(18);
-            a1.setFlatNumber(25);
-            a1.setPersons(new HashSet<>());
-            a1.getPersons().add(p1);
+                        p2.setName("John");
+                        p2.setSurname("McClane");
+                        p2.setAddress(a2);
 
-            a2.setStreetName("Nakatomi Plaza");
-            a2.setHouseNumber(10);
-            a2.setFlatNumber(34);
-            a2.setPersons(new HashSet<>());
-            a2.getPersons().add(p2);
-            a2.getPersons().add(p3);
+                        p3.setName("Holly");
+                        p3.setSurname("Gennaro");
+                        p3.setAddress(a2);
 
-            entityManager.persist(a1);
-            entityManager.persist(a2);
+                        a1.setStreetName("MI6");
+                        a1.setHouseNumber(18);
+                        a1.setFlatNumber(25);
+                        a1.setPersons(new HashSet<>());
+                        a1.getPersons().add(p1);
 
-            entityManager.persist(p1);
-            entityManager.persist(p2);
-            entityManager.persist(p3);
+                        a2.setStreetName("Nakatomi Plaza");
+                        a2.setHouseNumber(10);
+                        a2.setFlatNumber(34);
+                        a2.setPersons(new HashSet<>());
+                        a2.getPersons().add(p2);
+                        a2.getPersons().add(p3);
 
-            System.out.println("The DB was populated with example data.");
-        }
+                        session.persist(a1);
+                        session.persist(a2);
 
-        entityManager.getTransaction().commit();
+                        session.persist(p1);
+                        session.persist(p2);
+                        session.persist(p3);
+
+                        System.out.println("The DB was populated with example data.");
+                    }
+                    return null;
+                }));
     }
 
     public static void main(String[] args) {
-        var configurationOverrides = new HashMap<String, String>();
-        EntityManagerFactory emf = Persistence.createEntityManagerFactory("ConsolePU", configurationOverrides);
-        EntityManager entityManager = emf.createEntityManager();
-
-        var console = new Console(entityManager);
+        EntityManagerFactory emf = Persistence.createEntityManagerFactory("ConsolePU");
+        var console = new Console(emf);
 
         System.out.println();
-        System.out.println("Welcome to EntityVersions demo!");
 
         console.populateTestData();
-        console.start();
-
-        entityManager.close();
+//        console.start();
+//        console.stop();
         emf.close();
     }
 
