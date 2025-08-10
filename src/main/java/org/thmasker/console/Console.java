@@ -463,10 +463,13 @@ public class Console {
 
         System.out.println();
 
-        console.populateTestData();
+        console.populateTestData()
 //        console.start();
 //        console.stop();
-        emf.close();
+                .eventually(emf::close)
+                .subscribe().with(
+                        item -> System.out.println("Success"),
+                        failure -> System.out.println("Failure"));
     }
 
 }

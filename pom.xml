@@ -35,17 +35,12 @@
         <dependency>
             <groupId>io.vertx</groupId>
             <artifactId>vertx-pg-client</artifactId>
-            <version>5.0.2</version>
-            <exclusions>
-                <exclusion>
-                    <artifactId>vertx-core</artifactId>
-                    <groupId>io.vertx</groupId>
-                </exclusion>
-                <exclusion>
-                    <artifactId>vertx-sql-client</artifactId>
-                    <groupId>io.vertx</groupId>
-                </exclusion>
-            </exclusions>
+            <version>4.5.16</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ongres.scram</groupId>
+            <artifactId>client</artifactId>
+            <version>2.1</version>
         </dependency>
 
         <!--test-->
