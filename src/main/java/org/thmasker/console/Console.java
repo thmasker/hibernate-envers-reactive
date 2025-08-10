@@ -399,7 +399,7 @@ public class Console {
     }
 
     private Uni<Boolean> hasData() {
-        Mutiny.Session session = sessionFactory.getCurrentSession();
+        Mutiny.StatelessSession session = sessionFactory.getCurrentStatelessSession();
 
         Uni<Long> addressCount = session.createQuery("select count(a) from Address a", Long.class).getSingleResult();
         Uni<Long> personCount = session.createQuery("select count(p) from Person p", Long.class).getSingleResult();
@@ -411,7 +411,7 @@ public class Console {
     private Uni<Void> populateTestData() {
         return sessionFactory.withStatelessSession(session ->
                 hasData().map(hasData -> {
-                    if (Boolean.TRUE.equals(hasData)) {
+                    if (Boolean.FALSE.equals(hasData)) {
                         Person p1 = new Person();
                         Person p2 = new Person();
                         Person p3 = new Person();
