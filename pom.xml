@@ -32,6 +32,21 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-pg-client</artifactId>
+            <version>5.0.2</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>vertx-core</artifactId>
+                    <groupId>io.vertx</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>vertx-sql-client</artifactId>
+                    <groupId>io.vertx</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
 
         <!--test-->
     </dependencies>
