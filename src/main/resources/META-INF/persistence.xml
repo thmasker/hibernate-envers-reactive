@@ -1,0 +1,26 @@
+<persistence xmlns="https://jakarta.ee/xml/ns/persistence"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence https://jakarta.ee/xml/ns/persistence/persistence_3_0.xsd"
+             version="3.0">
+
+    <persistence-unit name="ConsolePU">
+        <provider>org.hibernate.reactive.provider.ReactivePersistenceProvider</provider>
+
+        <class>org.thmasker.persistence.Person</class>
+        <class>org.thmasker.persistence.Address</class>
+
+        <properties>
+            <!--            <property name="jakarta.persistence.jdbc.driver" value="org.postgresql.Driver"/>-->
+            <property name="jakarta.persistence.jdbc.url" value="postgresql://localhost:5432/postgres"/>
+            <property name="jakarta.persistence.jdbc.user" value="postgres"/>
+            <property name="jakarta.persistence.jdbc.password" value="pass"/>
+
+            <property name="hibernate.hbm2ddl.auto" value="update"/>
+            <property name="hibernate.show_sql" value="true"/>
+            <property name="hibernate.format_sql" value="true"/>
+            <property name="hibernate.envers.store_data_at_delete" value="true"/>
+
+            <property name="hbm2ddl.auto" value="update"/>
+        </properties>
+    </persistence-unit>
+</persistence>

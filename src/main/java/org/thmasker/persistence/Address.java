@@ -1,43 +1,91 @@
 package org.thmasker.persistence;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import org.hibernate.envers.Audited;
 
-import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 @Entity
-@Audited
 public class Address {
 
     @Id
-    @Column(name = "id")
-    @SequenceGenerator(name = "id", sequenceName = "id")
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "id")
+    @GeneratedValue
     private int id;
 
-    @Column(name = "city")
-    private String city;
+    @Audited
+    private String streetName;
 
-    @Column(name = "street")
-    private String street;
+    @Audited
+    private Integer houseNumber;
 
-    @Column(name = "zip")
-    private String zip;
+    @Audited
+    private Integer flatNumber;
 
-    @Column(name = "country")
-    private String country;
-
+    @Audited
     @OneToMany(mappedBy = "address")
-    private List<Person> people;
+    private Set<Person> persons;
 
-    public Address() {
+    public int getId() {
+        return id;
     }
 
-    public Address(String city, String street, String zip, String country) {
-        this.city = city;
-        this.street = street;
-        this.zip = zip;
-        this.country = country;
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getStreetName() {
+        return streetName;
+    }
+
+    public void setStreetName(String streetName) {
+        this.streetName = streetName;
+    }
+
+    public Integer getHouseNumber() {
+        return houseNumber;
+    }
+
+    public void setHouseNumber(Integer houseNumber) {
+        this.houseNumber = houseNumber;
+    }
+
+    public Integer getFlatNumber() {
+        return flatNumber;
+    }
+
+    public void setFlatNumber(Integer flatNumber) {
+        this.flatNumber = flatNumber;
+    }
+
+    public Set<Person> getPersons() {
+        return persons;
+    }
+
+    public void setPersons(Set<Person> persons) {
+        this.persons = persons;
+    }
+
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Address address)) return false;
+
+        if (id != address.id) return false;
+        if (!Objects.equals(flatNumber, address.flatNumber)) return false;
+        if (!Objects.equals(houseNumber, address.houseNumber)) return false;
+        return Objects.equals(streetName, address.streetName);
+    }
+
+    public int hashCode() {
+        int result;
+        result = id;
+        result = 31 * result + (streetName != null ? streetName.hashCode() : 0);
+        result = 31 * result + (houseNumber != null ? houseNumber.hashCode() : 0);
+        result = 31 * result + (flatNumber != null ? flatNumber.hashCode() : 0);
+        return result;
     }
 
 }

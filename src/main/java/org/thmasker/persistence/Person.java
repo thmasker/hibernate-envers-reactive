@@ -1,35 +1,77 @@
 package org.thmasker.persistence;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
 import org.hibernate.envers.Audited;
 
+import java.util.Objects;
+
 @Entity
-@Audited
 public class Person {
 
     @Id
-    @Column(name = "id")
-    @SequenceGenerator(name = "id", sequenceName = "id")
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "id")
+    @GeneratedValue
     private int id;
 
-    @Column(name = "name")
+    @Audited
     private String name;
 
-    @Column(name = "surname")
+    @Audited
     private String surname;
 
-    @JoinColumn(name = "address")
-    @ManyToOne(cascade = CascadeType.ALL)
+    @Audited
+    @ManyToOne
     private Address address;
 
-    public Person() {
+    public int getId() {
+        return id;
     }
 
-    public Person(String name, String surname, Address address) {
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
         this.name = name;
+    }
+
+    public String getSurname() {
+        return surname;
+    }
+
+    public void setSurname(String surname) {
         this.surname = surname;
+    }
+
+    public Address getAddress() {
+        return address;
+    }
+
+    public void setAddress(Address address) {
         this.address = address;
+    }
+
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Person person)) return false;
+
+        if (id != person.id) return false;
+        if (!Objects.equals(name, person.name)) return false;
+        return Objects.equals(surname, person.surname);
+    }
+
+    public int hashCode() {
+        int result;
+        result = id;
+        result = 31 * result + (name != null ? name.hashCode() : 0);
+        result = 31 * result + (surname != null ? surname.hashCode() : 0);
+        return result;
     }
 
 }
