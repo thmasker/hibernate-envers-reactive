@@ -409,7 +409,7 @@ public class Console {
     }
 
     private Uni<Void> populateTestData() {
-        return sessionFactory.withSession(session ->
+        return sessionFactory.withStatelessSession(session ->
                 hasData().map(hasData -> {
                     if (Boolean.TRUE.equals(hasData)) {
                         Person p1 = new Person();
@@ -444,12 +444,12 @@ public class Console {
                         a2.getPersons().add(p2);
                         a2.getPersons().add(p3);
 
-                        session.persist(a1);
-                        session.persist(a2);
+                        session.insert(a1);
+                        session.insert(a2);
 
-                        session.persist(p1);
-                        session.persist(p2);
-                        session.persist(p3);
+                        session.insert(p1);
+                        session.insert(p2);
+                        session.insert(p3);
 
                         System.out.println("The DB was populated with example data.");
                     }
